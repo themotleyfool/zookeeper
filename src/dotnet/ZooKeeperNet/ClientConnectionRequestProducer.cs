@@ -48,7 +48,7 @@ namespace ZooKeeperNet
         {
             this.conn = conn;
             zooKeeper = conn.zooKeeper;
-            requestThread = new Thread(new SafeThreadStart(SendRequests).Run) { Name = "ZK-SendThread" + conn.zooKeeper.Id, IsBackground = true };
+            requestThread = new Thread(new SafeThreadStart(SendRequests).Run) { Name = "ZK-SendThread" + conn.zooKeeper.Id, IsBackground = true, Priority = ThreadPriority.AboveNormal};
         }
 
         protected int Xid
@@ -79,7 +79,10 @@ namespace ZooKeeperNet
                 if (!zooKeeper.State.IsAlive())
                     ConLossPacket(p);
                 else
+                {
                     outgoingQueue.AddLast(p);
+                    Monitor.PulseAll(outgoingQueueLock);
+                }
 
                 return p;
             }
@@ -151,10 +154,20 @@ namespace ZooKeeperNet
                         // as if we do the send now.
                         lastSend = now;
                     }
+
                     if (doIO(to))
                     {
                         lastHeard = now;
                     }
+                    else
+                    {
+                        lock(outgoingQueueLock)
+                        {
+                            if (outgoingQueue.Count == 0)
+                                Monitor.Wait(outgoingQueueLock, TimeSpan.FromMilliseconds(100));
+                        }
+                    }
+
                     if (zooKeeper.State == ZooKeeper.States.CONNECTED)
                     {
                         if (outgoingQueue.Count > 0)
@@ -317,27 +330,34 @@ namespace ZooKeeperNet
 
         private void ConnectSocket(IPEndPoint addr)
         {
-            bool connected = false;
             ManualResetEvent socketConnectTimeout = new ManualResetEvent(false);
+            bool connected = false;
+            Exception exception = null;
             ThreadPool.QueueUserWorkItem(state =>
             {
                 try
                 {
                     client.Connect(addr);
                     connected = true;
-                    socketConnectTimeout.Set();
                 } 
-                // ReSharper disable EmptyGeneralCatchClause
-                catch
-                // ReSharper restore EmptyGeneralCatchClause
-                {                    
+                catch (Exception ex)
+                {
+                    LOG.Error(string.Format("Could not make socket connection to {0}:{1}: {2}", addr.Address, addr.Port, ex.Message), ex);
+                    exception = ex;
                 }
+                socketConnectTimeout.Set();
             });
+
             socketConnectTimeout.WaitOne(10000);
-            
+
             if (connected) return;
 
-            throw new InvalidOperationException(string.Format("Could not make socket connection to {0}:{1}", addr.Address, addr.Port));
+            if (exception != null)
+            {
+                throw new InvalidOperationException(string.Format("Could not make socket connection to {0}:{1}", addr.Address, addr.Port), exception);
+            }
+
+            throw new InvalidOperationException(string.Format("Timeout making socket connection to {0}:{1}", addr.Address, addr.Port));
         }
 
         private void PrimeConnection(TcpClient client)
@@ -354,7 +374,8 @@ namespace ZooKeeperNet
                 boa.WriteInt(-1, "len");
                 conReq.Serialize(boa, "connect");
                 ms.Position = 0;
-                writer.Write(ms.ToArray().Length - 4);                buffer = ms.ToArray();
+                writer.Write(ms.ToArray().Length - 4);
+                buffer = ms.ToArray();
             }
             lock (outgoingQueueLock)
             {
@@ -399,7 +420,9 @@ namespace ZooKeeperNet
             bool packetReceived = false;
             if (client == null) throw new IOException("Socket is null!");
 
-            if (client.Client.Poll(Convert.ToInt32(to.TotalMilliseconds / 1000000), SelectMode.SelectRead))
+            var microSeconds = 0;
+
+            if (client.Client.Poll(microSeconds, SelectMode.SelectRead))
             {
                 packetReceived = true;
                 int total = 0;
@@ -438,7 +461,7 @@ namespace ZooKeeperNet
                     incomingBuffer = new byte[4];
                 }
             }
-            else if (writeEnabled && client.Client.Poll(Convert.ToInt32(to.TotalMilliseconds / 1000000), SelectMode.SelectWrite))
+            else if (writeEnabled && client.Client.Poll(microSeconds, SelectMode.SelectWrite))
             {
                 lock (outgoingQueueLock)
                 {
@@ -526,7 +549,7 @@ namespace ZooKeeperNet
                 }
                 if (replyHdr.Xid == -4)
                 {
-                    // -2 is the xid for AuthPacket
+                    // -4 is the xid for AuthPacket
                     // TODO: process AuthPacket here
                     if (LOG.IsDebugEnabled)
                     {
