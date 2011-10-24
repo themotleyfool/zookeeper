@@ -486,6 +486,7 @@
             {
                 throw new KeeperException.InvalidACLException();
             }
+            
             request.Acl = acl;
             ReplyHeader r = cnxn.SubmitRequest(h, request, response, null);
             if (r.Err != 0)

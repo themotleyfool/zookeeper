@@ -54,7 +54,22 @@
             {
                 while (!waitingEvents.IsCompleted)
                 {
-                    object @event = waitingEvents.Take();
+                    object @event;
+                    try
+                    {
+                        @event = waitingEvents.Take();    
+                    }
+                    catch (InvalidOperationException e)
+                    {
+                        if (waitingEvents.IsCompleted)
+                        {
+                            break;    
+                        }
+
+                        LOG.Error("Error taking event from queue", e);
+                        continue;
+                    }
+                    
                     try
                     {
                         if (@event is ClientConnection.WatcherSetEventPair)
