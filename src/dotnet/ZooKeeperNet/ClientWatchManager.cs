@@ -34,5 +34,7 @@ namespace ZooKeeperNet
          * @return
          */
         HashSet<IWatcher> Materialize(KeeperState state, EventType type, string path);
+
+        bool Remove(params IWatcher[] instances);
     }
 }

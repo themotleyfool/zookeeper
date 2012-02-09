@@ -356,6 +356,14 @@ namespace ZooKeeperNet
         List<string> GetChildren(string path, bool watch, Stat stat);
 
         /// <summary>
+        /// Removes one or more instances of IWatcher that are currently waiting to 
+        /// be notified.
+        /// </summary>
+        /// <param name="instances">Array of instances to be removed.</param>
+        /// <returns>True if one or more instances were removed or false if no instances were registered.</returns>
+        bool RemoveWatch(params IWatcher[] instances);
+
+        /// <summary>
         /// Close this client object. Once the client is closed, its session becomes
         /// invalid. All the ephemeral nodes in the ZooKeeper server associated with
         /// the session will be removed. The watches left on those nodes (and on

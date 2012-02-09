@@ -15,10 +15,11 @@
  *  limitations under the License.
  *
  */
-﻿namespace ZooKeeperNet
+namespace ZooKeeperNet
 {
     using System;
     using System.Collections.Generic;
+    using System.Linq;
     using log4net;
 
     public class ZKWatchManager : IClientWatchManager 
@@ -106,6 +107,21 @@
             }
 
             return result;
+        }
+
+       public bool Remove(params IWatcher[] instances)
+        {
+            var all = new List<IDictionary<string, HashSet<IWatcher>>>{dataWatches, childWatches, existWatches};
+            var count = 0;
+        foreach (var x in all) {
+            lock (x) {
+                foreach (var w in x.Values) {
+                    count += w.RemoveWhere(i => instances.Contains(i));
+                }
+            }
+        }
+
+            return count != 0;
         }
     }
 }

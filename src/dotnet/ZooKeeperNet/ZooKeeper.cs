@@ -955,6 +955,14 @@
         }
 
         /// <summary>
+        /// <see cref="IZooKeeper.RemoveWatch"/>
+        /// </summary>
+        public bool RemoveWatch(params IWatcher[] instances)
+        {
+        return watchManager.Remove(instances);
+        }
+
+        /// <summary>
         /// string representation of this ZooKeeper client. Suitable for things
         /// like logging.
         /// 
