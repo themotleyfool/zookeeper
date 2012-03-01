@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using ZooKeeperNet.IO;
 
 namespace ZooKeeperNet
@@ -17,6 +18,7 @@ namespace ZooKeeperNet
     public class ClientConnectionRequestProducer : IStartable, IDisposable
     {
         private static readonly ILog LOG = LogManager.GetLogger(typeof(ClientConnectionRequestProducer));
+        private static readonly ILog PingLog = LogManager.GetLogger(typeof(ClientConnectionRequestProducer) + ".Ping");
         private const string RETRY_CONN_MSG = ", closing socket connection and attempting reconnect";
 
         private readonly ClientConnection conn;
@@ -95,9 +97,8 @@ namespace ZooKeeperNet
 
         public void SendRequests()
         {
-            DateTime now = DateTime.Now;
-            DateTime lastHeard = now;
-            DateTime lastSend = now;
+            var lastSend = Stopwatch.StartNew();
+            var lastHeard = Stopwatch.StartNew();
             while (zooKeeper.State.IsAlive())
             {
                 try
@@ -110,54 +111,56 @@ namespace ZooKeeperNet
                             break;
                         }
                         StartConnect();
-                        lastSend = now;
-                        lastHeard = now;
+                        lastSend = Stopwatch.StartNew();
+                        lastHeard = Stopwatch.StartNew();
                     }
-                    TimeSpan idleRecv = now - lastHeard;
-                    TimeSpan idleSend = now - lastSend;
-                    TimeSpan to = conn.readTimeout - idleRecv;
+                    TimeSpan idleRecv = lastHeard.Elapsed;
+                    TimeSpan idleSend = lastSend.Elapsed;
+                    
+                    TimeSpan timeout = conn.readTimeout - idleRecv;
                     if (zooKeeper.State != ZooKeeper.States.CONNECTED)
                     {
-                        to = conn.connectTimeout - idleRecv;
+                        timeout = conn.connectTimeout - idleRecv;
                     }
-                    if (to <= TimeSpan.Zero)
+                    if (timeout <= TimeSpan.Zero)
                     {
                         throw new SessionTimeoutException(
-                                string.Format("Client session timed out, have not heard from server in {0}ms for sessionid 0x{1:X}", idleRecv, conn.SessionId));
+                                string.Format("Client session timed out, have not heard from server in {0} for sessionid 0x{1:X}", idleRecv, conn.SessionId));
                     }
                     if (zooKeeper.State == ZooKeeper.States.CONNECTED)
                     {
-                        TimeSpan timeToNextPing = new TimeSpan(0, 0, 0, 0, Convert.ToInt32(conn.readTimeout.TotalMilliseconds / 2 - idleSend.TotalMilliseconds));
+                        var pingInterval = conn.readTimeout.TotalMilliseconds / 2;
+                        var timeToNextPing = TimeSpan.FromMilliseconds(pingInterval - idleSend.TotalMilliseconds);
+                        
                         if (timeToNextPing <= TimeSpan.Zero)
                         {
+                            PingLog.DebugFormat("Ping interval {0} elapsed. Sending ping.", pingInterval);
                             SendPing();
-                            lastSend = now;
+                            lastSend.Reset();
+                            lastSend.Start();
                             EnableWrite();
                         }
                         else
                         {
-                            if (timeToNextPing < to)
+                            if (timeToNextPing < timeout)
                             {
-                                to = timeToNextPing;
+                                timeout = timeToNextPing;
                             }
                         }
                     }
-
-                    // Everything below and until we get back to the select is
-                    // non blocking, so time is effectively a constant. That is
-                    // Why we just have to do this once, here
-                    now = DateTime.Now;
 
                     if (outgoingQueue.Count > 0)
                     {
                         // We have something to send so it's the same
                         // as if we do the send now.
-                        lastSend = now;
+                        lastSend.Reset();
+                        lastSend.Start();
                     }
 
-                    if (doIO(to))
+                    if (doIO(timeout))
                     {
-                        lastHeard = now;
+                        lastHeard.Reset();
+                        lastHeard.Start();
                     }
                     else
                     {
@@ -201,7 +204,7 @@ namespace ZooKeeperNet
                     {
                         LOG.Info(e.Message + RETRY_CONN_MSG);
                     }
-                    else if (e is System.IO.EndOfStreamException)
+                    else if (e is EndOfStreamException)
                     {
                         LOG.Info(e.Message + RETRY_CONN_MSG);
                     }
@@ -215,9 +218,10 @@ namespace ZooKeeperNet
                         conn.consumer.QueueEvent(new WatchedEvent(KeeperState.Disconnected, EventType.None, null));
                     }
 
-                    now = DateTime.Now;
-                    lastHeard = now;
-                    lastSend = now;
+                    lastHeard.Reset();
+                    lastHeard.Start();
+                    lastSend.Reset();
+                    lastSend.Start();
                     client = null;
                 }
             }
@@ -421,7 +425,7 @@ namespace ZooKeeperNet
             if (client == null) throw new IOException("Socket is null!");
 
             var microSeconds = 0;
-
+            
             if (client.Client.Poll(microSeconds, SelectMode.SelectRead))
             {
                 packetReceived = true;
@@ -541,9 +545,9 @@ namespace ZooKeeperNet
                 if (replyHdr.Xid == -2)
                 {
                     // -2 is the xid for pings
-                    if (LOG.IsDebugEnabled)
+                    if (PingLog.IsDebugEnabled)
                     {
-                        LOG.Debug(string.Format("Got ping response for sessionid: 0x{0:X} after {1}ms", conn.SessionId, (DateTime.Now.Nanos() - lastPingSentNs)/1000000));
+                        PingLog.Debug(string.Format("Got ping response for sessionid: 0x{0:X} after {1}ms", conn.SessionId, (DateTime.Now.Nanos() - lastPingSentNs) / 1000000));
                     }
                     return;
                 }
