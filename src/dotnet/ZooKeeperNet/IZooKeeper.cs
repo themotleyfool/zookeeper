@@ -371,7 +371,7 @@ namespace ZooKeeperNet
         /// This method does not interrupt the current connection to an existing server, but once
         /// any current connection is disconnected, the new connectString will come into affect.
         /// </summary>
-        string ConnectString { set; }
+        string ConnectString { get;  set; }
 
         /// <summary>
         /// Close this client object. Once the client is closed, its session becomes

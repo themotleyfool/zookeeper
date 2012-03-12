@@ -112,6 +112,13 @@
                     roundRobinServerAddresses = RoundRobinServerAddresses.GetEnumerator();
                 }
             }
+            get
+            {
+                lock(sync)
+                {
+                    return hosts;
+                }
+            }
         }
 
         private void CreateConsumer()

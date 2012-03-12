@@ -280,6 +280,10 @@
 
         public string ConnectString
         {
+            get
+            {
+                return cnxn.ConnectString;
+            }
             set
             {
                 cnxn.ConnectString = value;    
