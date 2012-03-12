@@ -47,6 +47,8 @@
             packetLen = 4096 * 1024;
         }
 
+        private readonly object sync = new object();
+
         internal string hosts;
         internal readonly ZooKeeper zooKeeper;
         internal readonly ZKWatchManager watcher;
@@ -81,19 +83,35 @@
         /// <param name="sessionPasswd">The session passwd.</param>
         public ClientConnection(string hosts, TimeSpan sessionTimeout, ZooKeeper zooKeeper, ZKWatchManager watcher, long sessionId, byte[] sessionPasswd)
         {
-            this.hosts = hosts;
+            ConnectString = hosts;
+
             this.zooKeeper = zooKeeper;
             this.watcher = watcher;
             SessionTimeout = sessionTimeout;
             SessionId = sessionId;
             SessionPassword = sessionPasswd;
 
-            // parse out chroot, if any
-            hosts = SetChrootPath();
-            GetHosts(hosts);
             SetTimeouts(sessionTimeout);
             CreateConsumer();
             CreateProducer();
+        }
+
+        public string ConnectString
+        {
+            set
+            {
+                lock (sync)
+                {
+                    serverAddrs.Clear();
+                    this.hosts = value;
+
+                    // parse out chroot, if any
+                    var chrootHosts = SetChrootPath();
+                    ParseConnectString(chrootHosts);
+
+                    roundRobinServerAddresses = RoundRobinServerAddresses.GetEnumerator();
+                }
+            }
         }
 
         private void CreateConsumer()
@@ -131,7 +149,7 @@
             return hosts;
         }
 
-        private void GetHosts(string hosts)
+        private void ParseConnectString(string hosts)
         {
             string[] hostsList = hosts.Split(',');
             foreach (string h in hostsList)
@@ -157,7 +175,7 @@
 
         private void SetTimeouts(TimeSpan sessionTimeout)
         {
-            connectTimeout = new TimeSpan(0, 0, 0, 0, Convert.ToInt32(sessionTimeout.TotalMilliseconds / serverAddrs.Count));
+            connectTimeout = new TimeSpan(0, 0, 0, 0, Convert.ToInt32(sessionTimeout.TotalMilliseconds / ServerAddressCount));
             readTimeout = new TimeSpan(0, 0, 0, 0, Convert.ToInt32(sessionTimeout.TotalMilliseconds * 2 / 3));
         }
 
@@ -184,6 +202,46 @@
         /// </summary>
         /// <value>The chroot path.</value>
         public string ChrootPath { get; private set; }
+
+        public int ServerAddressCount
+        {
+            get
+            {
+                lock (sync)
+                    return serverAddrs.Count;
+            }
+        }
+
+        public IPEndPoint NextServerAddress
+        {
+            get
+            {
+                lock (sync)
+                {
+                    roundRobinServerAddresses.MoveNext();
+
+                    return roundRobinServerAddresses.Current;
+                }
+            }
+        }
+        
+        private IEnumerator<IPEndPoint> roundRobinServerAddresses;
+
+        private IEnumerable<IPEndPoint> RoundRobinServerAddresses
+        {
+            get
+            {
+                var i = 0;
+                while (true)
+                {
+                    yield return serverAddrs[i++];
+                    if (i >= ServerAddressCount)
+                    {
+                        i = 0;
+                    }
+                }
+            }
+        }
 
         public void Start()
         {

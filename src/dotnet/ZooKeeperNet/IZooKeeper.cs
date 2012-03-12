@@ -364,6 +364,16 @@ namespace ZooKeeperNet
         bool RemoveWatch(params IWatcher[] instances);
 
         /// <summary>
+        /// Updates the connectString used to specify which server(s) to connect to.  This method
+        /// allows the client to react to configuration changes without needing to dispose this instance
+        /// and create a new session.
+        /// 
+        /// This method does not interrupt the current connection to an existing server, but once
+        /// any current connection is disconnected, the new connectString will come into affect.
+        /// </summary>
+        string ConnectString { set; }
+
+        /// <summary>
         /// Close this client object. Once the client is closed, its session becomes
         /// invalid. All the ephemeral nodes in the ZooKeeper server associated with
         /// the session will be removed. The watches left on those nodes (and on

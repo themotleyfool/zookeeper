@@ -278,6 +278,14 @@
             cnxn.Start();
         }
 
+        public string ConnectString
+        {
+            set
+            {
+                cnxn.ConnectString = value;    
+            }
+        }
+
         /// <summary>
         /// Unique ID representing the instance of the client
         /// </summary>

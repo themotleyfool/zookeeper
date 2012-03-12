@@ -15,6 +15,8 @@
  *  limitations under the License.
  *
  */
+using System.Net;
+
 namespace ZooKeeperNet
 {
     using System;
@@ -78,5 +80,25 @@ namespace ZooKeeperNet
         /// <param name="ctx">The context.</param>
         /// <returns></returns>
         Packet QueuePacket(RequestHeader h, ReplyHeader r, IRecord request, IRecord response, string clientPath, string serverPath, ZooKeeper.WatchRegistration watchRegistration, object callback, object ctx);
+
+        /// <summary>
+        /// Updates the connectString used to specify which server(s) to connect to.  This method
+        /// allows the client to react to configuration changes without needing to dispose this instance
+        /// and create a new session.
+        /// 
+        /// This method does not interrupt the current connection to an existing server, but once
+        /// any current connection is disconnected, the new connectString will come into affect.
+        /// </summary>
+        string ConnectString { set; }
+
+        /// <summary>
+        /// Returns the number of servers in the list as specified by ConnectString.
+        /// </summary>
+        int ServerAddressCount { get; }
+
+        /// <summary>
+        /// Retrieves the next server that should be used when initiating a new connection.
+        /// </summary>
+        IPEndPoint NextServerAddress { get; }
     }
 }

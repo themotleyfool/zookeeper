@@ -31,10 +31,8 @@ namespace ZooKeeperNet
         private bool writeEnabled;
 
         private TcpClient client;
-        private int lastConnectIndex;
+        private bool firstConnectAttempt = true;
         private readonly Random random = new Random();
-        private int nextAddrToTry;
-        private int currentConnectIndex;
         private bool initialized;
         internal long lastZxid;
         private long lastPingSentNs;
@@ -283,43 +281,29 @@ namespace ZooKeeperNet
 
         private void StartConnect()
         {
-            if (lastConnectIndex == -1)
+            if (firstConnectAttempt)
             {
                 // We don't want to delay the first try at a connect, so we
                 // start with -1 the first time around
-                lastConnectIndex = 0;
+                firstConnectAttempt = false;
             }
             else
             {
+                TimeSpan sleepTime = conn.ServerAddressCount == 1 ? TimeSpan.FromSeconds(1) : TimeSpan.FromMilliseconds(random.Next(0, 50));
                 try
                 {
-                    Thread.Sleep(new TimeSpan(0, 0, 0, 0, random.Next(0, 50)));
+                    Thread.Sleep(sleepTime);
                 }
                 catch (ThreadInterruptedException e1)
                 {
                     LOG.Warn("Unexpected exception", e1);
                 }
-                if (nextAddrToTry == lastConnectIndex)
-                {
-                    try
-                    {
-                        // Try not to spin too fast!
-                        Thread.Sleep(1000);
-                    }
-                    catch (ThreadInterruptedException e)
-                    {
-                        LOG.Warn("Unexpected exception", e);
-                    }
-                }
             }
+
             zooKeeper.State = ZooKeeper.States.CONNECTING;
-            currentConnectIndex = nextAddrToTry;
-            IPEndPoint addr = conn.serverAddrs[nextAddrToTry];
-            nextAddrToTry++;
-            if (nextAddrToTry == conn.serverAddrs.Count)
-            {
-                nextAddrToTry = 0;
-            }
+            
+            IPEndPoint addr = conn.NextServerAddress;
+            
             LOG.Info("Opening socket connection to server " + addr);
             client = new TcpClient();
             client.LingerState = new LingerOption(false, 0);
@@ -327,7 +311,6 @@ namespace ZooKeeperNet
             
             ConnectSocket(addr);
 
-            //sock.Blocking = true;
             PrimeConnection(client);
             initialized = false;
         }
@@ -355,7 +338,7 @@ namespace ZooKeeperNet
         private void PrimeConnection(TcpClient client)
         {
             LOG.Info(string.Format("Socket connection established to {0}, initiating session", client.Client.RemoteEndPoint));
-            lastConnectIndex = currentConnectIndex;
+            
             ConnectRequest conReq = new ConnectRequest(0, lastZxid, Convert.ToInt32(conn.SessionTimeout.TotalMilliseconds), conn.SessionId, conn.SessionPassword);
 
             byte[] buffer;
@@ -512,7 +495,7 @@ namespace ZooKeeperNet
                     throw new SessionExpiredException(string.Format("Unable to reconnect to ZooKeeper service, session 0x{0:X} has expired", conn.SessionId));
                 }
                 conn.readTimeout = new TimeSpan(0, 0, 0, 0, negotiatedSessionTimeout*2/3);
-                conn.connectTimeout = new TimeSpan(0, 0, 0, negotiatedSessionTimeout/conn.serverAddrs.Count);
+                conn.connectTimeout = new TimeSpan(0, 0, 0, negotiatedSessionTimeout/conn.ServerAddressCount);
                 conn.SessionId = conRsp.SessionId;
                 conn.SessionPassword = conRsp.Passwd;
                 zooKeeper.State = ZooKeeper.States.CONNECTED;
