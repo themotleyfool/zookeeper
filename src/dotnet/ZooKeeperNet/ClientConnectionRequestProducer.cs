@@ -334,34 +334,22 @@ namespace ZooKeeperNet
 
         private void ConnectSocket(IPEndPoint addr)
         {
-            ManualResetEvent socketConnectTimeout = new ManualResetEvent(false);
-            bool connected = false;
-            Exception exception = null;
-            ThreadPool.QueueUserWorkItem(state =>
+            var ar = client.BeginConnect(addr.Address, addr.Port, null, null);
+
+            if (!ar.AsyncWaitHandle.WaitOne(10000))
             {
-                try
-                {
-                    client.Connect(addr);
-                    connected = true;
-                } 
-                catch (Exception ex)
-                {
-                    LOG.Error(string.Format("Could not make socket connection to {0}:{1}: {2}", addr.Address, addr.Port, ex.Message), ex);
-                    exception = ex;
-                }
-                socketConnectTimeout.Set();
-            });
-
-            socketConnectTimeout.WaitOne(10000);
-
-            if (connected) return;
-
-            if (exception != null)
-            {
-                throw new InvalidOperationException(string.Format("Could not make socket connection to {0}:{1}", addr.Address, addr.Port), exception);
+                client.Close();
+                throw new InvalidOperationException(string.Format("Timeout making socket connection to {0}:{1}", addr.Address, addr.Port));
             }
 
-            throw new InvalidOperationException(string.Format("Timeout making socket connection to {0}:{1}", addr.Address, addr.Port));
+            try
+            {
+                client.EndConnect(ar);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(string.Format("Could not make socket connection to {0}:{1}", addr.Address, addr.Port), ex);
+            }
         }
 
         private void PrimeConnection(TcpClient client)
