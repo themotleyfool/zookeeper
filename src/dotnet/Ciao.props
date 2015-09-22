@@ -8,10 +8,14 @@
     <PropertyGroup Label="Settings">
         <SolutionFile>ZooKeeperNet.sln</SolutionFile>
     </PropertyGroup>
-    
+
     <PropertyGroup Label="FeatureFlags">
         <GenerateVersionInfoEnabled>true</GenerateVersionInfoEnabled>
         <NUnitEnabled>false</NUnitEnabled>
         <NuGetPackEnabled>true</NuGetPackEnabled>
     </PropertyGroup>
+
+    <ItemGroup>
+        <NuSpecTarget Include="ZooKeeperNet\ZooKeeperNet.nuspec"/>
+    </ItemGroup>
 </Project>
