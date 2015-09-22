@@ -1,13 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
-    <BuildDependsOn>
+    <CompileDependsOn>
        Jute;
-       $(BuildDependsOn)
-    </BuildDependsOn>
+       $(CompileDependsOn);
+       ILMerge
+    </CompileDependsOn>
   </PropertyGroup>
 
   <Target Name="Jute">
     <Exec Command="ant" WorkingDirectory="$(MSBuildThisFileDirectory)\..\.."/>
+  </Target>
+
+  <PropertyGroup>
+    <ILMergeCommand>$(MSBuildThisFileDirectory)\packages\ilmerge.2.14.1208\tools\ILMerge.exe</ILMergeCommand>
+      >/keyfile:$(AssemblyOriginatorKeyFile)</ILMergeArgs>
+    <ILMergeKeyFile>$(MSBuildThisFileDirectory)ZooKeeperKey.snk</ILMergeKeyFile>
+    <ILMergeArgs Condition=" '$(ILMergeKeyFile)' != '' and Exists($(ILMergeKeyFile)) "
+      >/keyfile:$(ILMergeKeyFile)</ILMergeArgs>
+  </PropertyGroup>
+
+  <Target Name="ILMerge" Inputs="%(CiaoBuildConfiguration.Identity)" Outputs="**none**">
+    <Exec Command="$(ILMergeCommand) $(ILMergeArgs) /internalize /targetplatform:v2 /lib:ZooKeeperNet\bin\%(CiaoBuildConfiguration.Identity) /out:ZooKeeperNet\bin\%(CiaoBuildConfiguration.Identity)\ZooKeeperNet.dll ZooKeeperNet\obj\%(CiaoBuildConfiguration.Identity)\ZooKeeperNet.dll ZooKeeperNet\bin\%(CiaoBuildConfiguration.Identity)\System.Threading.dll"
+      WorkingDirectory="$(MSBuildThisFileDirectory)"/>
   </Target>
 </Project>

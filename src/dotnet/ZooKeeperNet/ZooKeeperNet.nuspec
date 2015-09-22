@@ -12,7 +12,6 @@
     <copyright>Copyright 2015</copyright>
     <dependencies>
       <group targetFramework="net35">
-        <dependency id="System.Threading.dll" version="1.0.2856"/>
         <dependency id="log4net" version="[1.2.10,)"/>
       </group>
     </dependencies>
