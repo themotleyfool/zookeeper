@@ -9,12 +9,11 @@
   </PropertyGroup>
 
   <Target Name="Jute">
-    <Exec Command="ant" WorkingDirectory="$(MSBuildThisFileDirectory)\..\.."/>
+    <Exec Command="ant" WorkingDirectory="$(MSBuildThisFileDirectory)..\.."/>
   </Target>
 
   <PropertyGroup>
-    <ILMergeCommand>$(MSBuildThisFileDirectory)\packages\ilmerge.2.14.1208\tools\ILMerge.exe</ILMergeCommand>
-      >/keyfile:$(AssemblyOriginatorKeyFile)</ILMergeArgs>
+    <ILMergeCommand>$(MSBuildThisFileDirectory)packages\ilmerge.2.14.1208\tools\ILMerge.exe</ILMergeCommand>
     <ILMergeKeyFile>$(MSBuildThisFileDirectory)ZooKeeperKey.snk</ILMergeKeyFile>
     <ILMergeArgs Condition=" '$(ILMergeKeyFile)' != '' and Exists($(ILMergeKeyFile)) "
       >/keyfile:$(ILMergeKeyFile)</ILMergeArgs>
