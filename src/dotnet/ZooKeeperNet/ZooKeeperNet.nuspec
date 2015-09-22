@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>ZooKeeperNet</id>
+    <version>$version$</version>
+    <title>ZooKeeperNet</title>
+    <authors>Eric Hauser, Chris Eldredge</authors>
+    <owners>The Motley Fool, LLC</owners>
+    <projectUrl>https://github.com/chriseldredge/zookeeper/</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>ZooKeeper client for Microsoft.NET.</description>
+    <copyright>Copyright 2015</copyright>
+  </metadata>
+</package>
